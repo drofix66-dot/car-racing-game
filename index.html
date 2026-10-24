@@ -3,413 +3,441 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>DROFIX RACING V2</title>
+<meta name="viewport"
+content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>DROFIX RACING 3D</title>
 <style>
 *{box-sizing:border-box}
 body{
- margin:0;background:#080d19;color:white;
- font-family:Arial,sans-serif;text-align:center;
+ margin:0;overflow:hidden;background:#080e19;
+ color:white;font-family:Arial;
+ touch-action:none;
 }
-header{
- padding:10px;font-size:23px;font-weight:900;
- color:#00e5ff;letter-spacing:2px;
-}
+#game{position:fixed;inset:0}
 #hud{
+ position:fixed;top:10px;left:10px;right:10px;
  display:flex;justify-content:space-around;
- padding:8px;background:#172238;font-size:13px;
+ background:#071326cc;padding:12px;
+ border-radius:12px;font-weight:bold;
+ font-size:13px;
 }
-#hud b{color:#ffdf54}
-#wrap{
- position:relative;width:min(100vw,400px);
- margin:auto;overflow:hidden;
-}
-canvas{
- display:block;width:100%;height:auto;
- background:#292d36;
-}
-#overlay{
- position:absolute;inset:0;
- background:#080e20ed;
+#hud b{color:#00e5ff}
+#menu{
+ position:fixed;inset:0;background:#071326dc;
  display:flex;flex-direction:column;
  align-items:center;justify-content:center;
- padding:15px;gap:10px;
+ text-align:center;padding:20px;
 }
-#overlay h1{color:#00e5ff;margin:5px}
-#overlay p{font-size:14px;line-height:1.5}
+h1{color:#00e5ff;font-size:30px}
 button{
- border:0;border-radius:12px;padding:13px 19px;
- background:#00d9ff;color:#07101d;
- font-weight:900;font-size:16px;
- touch-action:none;cursor:pointer;
+ border:0;border-radius:13px;padding:16px;
+ background:#00dfff;color:#071326;
+ font-weight:900;font-size:18px;
+ touch-action:none;
 }
-button:disabled{opacity:.35}
-#garage{
- display:flex;gap:7px;flex-wrap:wrap;
- justify-content:center;max-width:350px;
-}
-.carBtn{font-size:12px;padding:10px}
 #controls{
- display:flex;justify-content:center;gap:10px;
- padding:12px;
+ position:fixed;bottom:20px;left:8px;right:8px;
+ display:flex;justify-content:space-between;
+ gap:7px;
 }
-#controls button{min-width:65px}
-#nitro{background:#ffbd30}
-#pause{background:#aaa}
-#message{color:#ffdc57;font-size:13px}
+#controls button{flex:1}
+#nitro{background:#ffbf30}
+#brake{background:#ff5365}
+#message{line-height:1.7}
 </style>
 </head>
 <body>
-<header>🏎️ DROFIX RACING V2</header>
+
+<div id="game"></div>
+
 <div id="hud">
- <span>Score <b id="score">0</b></span>
+ <span>🏆 <b id="score">0</b></span>
+ <span>LEVEL <b id="level">1</b></span>
  <span>🪙 <b id="coins">0</b></span>
- <span>Level <b id="level">1</b></span>
  <span><b id="speed">0</b> KM/H</span>
 </div>
 
-<div id="wrap">
- <canvas id="game" width="360" height="600"></canvas>
- <div id="overlay">
-  <h1 id="heading">DROFIX RACING</h1>
-  <p id="info">Collect coins, avoid traffic and race!</p>
-  <div id="garage"></div>
-  <div id="message"></div>
-  <button id="play">START RACE ▶</button>
-  <p id="best"></p>
- </div>
+<div id="menu">
+ <h1 id="title">🏎️ DROFIX RACING 3D</h1>
+ <p id="message">
+ Real 3D Highway Racing<br>
+ Avoid traffic and collect coins!
+ </p>
+ <button id="start">START RACE ▶</button>
 </div>
 
 <div id="controls">
  <button id="left">◀</button>
- <button id="nitro">⚡ NITRO</button>
+ <button id="brake">BRAKE</button>
+ <button id="nitro">⚡</button>
  <button id="right">▶</button>
- <button id="pause">Ⅱ</button>
 </div>
 
-<script>
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
+<script type="module">
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
 const $=id=>document.getElementById(id);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x8bc8ed);
+scene.fog=new THREE.Fog(0x8bc8ed,35,125);
 
-const W=360,H=600;
-const roadL=36,roadR=324;
-const lanes=[84,180,276];
+const camera=new THREE.PerspectiveCamera(
+ 65,innerWidth/innerHeight,.1,200
+);
 
-const cars=[
- {name:"BLUE",color:"#00dfff",price:0},
- {name:"RED",color:"#ff435d",price:20},
- {name:"GOLD",color:"#ffd12c",price:50},
- {name:"GREEN",color:"#4aff80",price:100}
-];
+const renderer=new THREE.WebGLRenderer({
+ antialias:true
+});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+$("game").appendChild(renderer.domElement);
 
-let bank=Number(localStorage.getItem("droCoins"))||0;
-let best=Number(localStorage.getItem("droBest"))||0;
-let selected=0;
+// Lighting
+scene.add(new THREE.HemisphereLight(
+ 0xffffff,0x426b38,2
+));
+const sun=new THREE.DirectionalLight(0xffffff,2.5);
+sun.position.set(-15,30,-20);
+sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left=-40;
+sun.shadow.camera.right=40;
+sun.shadow.camera.top=40;
+sun.shadow.camera.bottom=-40;
+scene.add(sun);
 
-let state="menu";
-let score=0,level=1,speed=0,nitro=100;
-let x=180,objects=[],spawn=0,roadOffset=0;
-let input={left:false,right:false,nitro:false};
-let last=0,audio=null;
-
-function save(){
- localStorage.setItem("droCoins",bank);
- localStorage.setItem("droBest",best);
+function box(w,h,d,color){
+ const mesh=new THREE.Mesh(
+  new THREE.BoxGeometry(w,h,d),
+  new THREE.MeshStandardMaterial({
+   color,roughness:.55,metalness:.15
+  })
+ );
+ mesh.castShadow=true;
+ mesh.receiveShadow=true;
+ return mesh;
 }
 
-function sound(freq=440,duration=.08,type="sine"){
- try{
-  audio=audio||new (window.AudioContext||
-    window.webkitAudioContext)();
-  let o=audio.createOscillator();
-  let g=audio.createGain();
-  o.type=type;
-  o.frequency.value=freq;
-  g.gain.setValueAtTime(.07,audio.currentTime);
-  g.gain.exponentialRampToValueAtTime(
-    .001,audio.currentTime+duration);
-  o.connect(g);g.connect(audio.destination);
-  o.start();o.stop(audio.currentTime+duration);
- }catch(e){}
+// Ground
+const ground=box(200,.1,250,0x268044);
+ground.position.set(0,-.15,30);
+scene.add(ground);
+
+// Highway
+const road=box(12,.12,250,0x30343d);
+road.position.set(0,0,30);
+scene.add(road);
+
+// Road lines
+let lines=[];
+for(let z=-80;z<100;z+=12){
+ for(let x of [-2,2]){
+  let line=box(.13,.025,5,0xffffff);
+  line.position.set(x,.09,z);
+  scene.add(line);
+  lines.push(line);
+ }
 }
 
-function garage(){
- $("garage").innerHTML="";
- cars.forEach((c,i)=>{
-  let b=document.createElement("button");
-  b.className="carBtn";
-  let unlocked=i===0||
-   localStorage.getItem("droCar"+i)==="yes";
-  b.textContent=c.name+
-   (unlocked?(selected===i?" ✓":""):" 🪙"+c.price);
-  b.style.background=c.color;
-  b.onclick=()=>{
-   if(unlocked){
-    selected=i;sound(600);garage();
-    $("message").textContent=c.name+" selected!";
-   }else if(bank>=c.price){
-    bank-=c.price;
-    localStorage.setItem("droCar"+i,"yes");
-    selected=i;save();garage();hud();
-    sound(800);
-    $("message").textContent="CAR UNLOCKED!";
-   }else{
-    $("message").textContent="Not enough coins!";
-    sound(180,.2);
-   }
-  };
-  $("garage").appendChild(b);
- });
+// Road boundaries
+for(let x of [-5.8,5.8]){
+ let edge=box(.16,.08,250,0xffffff);
+ edge.position.set(x,.1,30);
+ scene.add(edge);
+}
+
+// 3D Trees
+let trees=[];
+function tree(x,z){
+ const group=new THREE.Group();
+ const trunk=box(.45,2,.45,0x71441f);
+ trunk.position.y=1;
+ group.add(trunk);
+
+ const leaves=new THREE.Mesh(
+  new THREE.ConeGeometry(1.6,4,7),
+  new THREE.MeshStandardMaterial({color:0x086b30})
+ );
+ leaves.position.y=4;
+ leaves.castShadow=true;
+ group.add(leaves);
+
+ group.position.set(x,0,z);
+ scene.add(group);
+ trees.push(group);
+}
+
+for(let z=-80;z<100;z+=10){
+ tree(-9-Math.random()*4,z);
+ tree(9+Math.random()*4,z+4);
+}
+
+// Sports car model
+function makeCar(color){
+ const car=new THREE.Group();
+
+ const body=box(1.8,.55,3.5,color);
+ body.position.y=.65;
+ car.add(body);
+
+ const hood=box(1.65,.12,1, color);
+ hood.position.set(0,.99,-1);
+ car.add(hood);
+
+ const roof=box(1.4,.55,1.5,0x15263c);
+ roof.position.set(0,1.15,.15);
+ car.add(roof);
+
+ const windshield=box(1.35,.08,.55,0x61caff);
+ windshield.position.set(0,1.44,-.35);
+ car.add(windshield);
+
+ // Wheels
+ for(let x of [-1,1]){
+  for(let z of [-1.05,1.05]){
+   const wheel=new THREE.Mesh(
+    new THREE.CylinderGeometry(.37,.37,.23,16),
+    new THREE.MeshStandardMaterial({color:0x101014})
+   );
+   wheel.rotation.z=Math.PI/2;
+   wheel.position.set(x,.4,z);
+   wheel.castShadow=true;
+   car.add(wheel);
+  }
+ }
+
+ // Rear lights
+ for(let x of [-.6,.6]){
+  const light=box(.38,.13,.07,0xff2020);
+  light.position.set(x,.7,1.78);
+  car.add(light);
+ }
+
+ // Headlights
+ for(let x of [-.6,.6]){
+  const light=box(.4,.13,.07,0xffffcc);
+  light.position.set(x,.7,-1.78);
+  car.add(light);
+ }
+
+ return car;
+}
+
+const player=makeCar(0x00dfff);
+player.position.set(0,.1,5);
+scene.add(player);
+
+// Chase camera
+camera.position.set(0,5,13);
+camera.lookAt(0,1,-12);
+
+// Game state
+let running=false;
+let score=0,level=1,coins=0;
+let speed=0,spawn=0;
+let enemies=[];
+let pickups=[];
+let last=0;
+let keys={
+ left:false,right:false,
+ brake:false,nitro:false
+};
+
+function coin(x,z){
+ const mesh=new THREE.Mesh(
+  new THREE.TorusGeometry(.5,.16,8,16),
+  new THREE.MeshStandardMaterial({
+   color:0xffd700,
+   metalness:.7,roughness:.2
+  })
+ );
+ mesh.position.set(x,1,z);
+ scene.add(mesh);
+ pickups.push(mesh);
+}
+
+function traffic(){
+ const lane=[-4,0,4][Math.floor(Math.random()*3)];
+
+ if(Math.random()<.3){
+  coin(lane,-75);
+ }else{
+  const colors=[0xff354f,0xffa52b,0x985bff];
+  const car=makeCar(
+   colors[Math.floor(Math.random()*colors.length)]
+  );
+  car.position.set(lane,.1,-75);
+  car.rotation.y=Math.PI;
+  scene.add(car);
+  enemies.push(car);
+ }
 }
 
 function hud(){
  $("score").textContent=Math.floor(score);
- $("coins").textContent=bank;
  $("level").textContent=level;
+ $("coins").textContent=coins;
  $("speed").textContent=Math.floor(speed);
 }
 
-function menu(title,info,button){
- state="menu";
- $("overlay").style.display="flex";
- $("heading").textContent=title;
- $("info").textContent=info;
- $("play").textContent=button;
- $("best").textContent="🏆 BEST SCORE: "+best;
- $("message").textContent="";
- garage();hud();
+function gameOver(){
+ running=false;
+ $("menu").style.display="flex";
+ $("title").textContent="💥 GAME OVER";
+ $("message").textContent=
+ "Score: "+Math.floor(score)+" | Coins: "+coins;
+ $("start").textContent="RESTART RACE ▶";
 }
 
-function startGame(){
- score=0;level=1;speed=90;nitro=100;
- x=180;objects=[];spawn=0;roadOffset=0;
- input={left:false,right:false,nitro:false};
- last=0;state="playing";
- $("overlay").style.display="none";
- $("pause").textContent="Ⅱ";
- sound(650,.15);
- requestAnimationFrame(loop);
+function start(){
+ enemies.forEach(o=>scene.remove(o));
+ pickups.forEach(o=>scene.remove(o));
+ enemies=[];pickups=[];
+
+ score=0;level=1;coins=0;
+ speed=100;spawn=0;
+ player.position.x=0;
+ keys={left:false,right:false,brake:false,nitro:false};
+ last=0;
+ running=true;
+ $("menu").style.display="none";
+ hud();
 }
 
-function endGame(){
- state="over";
- sound(130,.4,"sawtooth");
- best=Math.max(best,Math.floor(score));
- save();
- menu("💥 GAME OVER",
- "Your Score: "+Math.floor(score)+
- " | Coins: "+bank,"RACE AGAIN ▶");
- state="over";
-}
+$("start").onclick=start;
 
-function car(cx,y,color,enemy=false){
- ctx.save();
- ctx.translate(cx,y);
- ctx.fillStyle="#101010";
- ctx.fillRect(-25,-25,7,20);
- ctx.fillRect(18,-25,7,20);
- ctx.fillRect(-25,12,7,20);
- ctx.fillRect(18,12,7,20);
-
- ctx.fillStyle=color;
- ctx.beginPath();
- ctx.roundRect(-21,-36,42,72,9);
- ctx.fill();
-
- ctx.fillStyle="#15253d";
- ctx.fillRect(-15,-18,30,17);
- ctx.fillRect(-15,12,30,12);
-
- ctx.fillStyle=enemy?"#ffec8a":"#fff";
- ctx.fillRect(-17,enemy?29:-33,9,5);
- ctx.fillRect(8,enemy?29:-33,9,5);
-
- ctx.fillStyle="#ffffff55";
- ctx.fillRect(-3,-32,6,63);
- ctx.restore();
-}
-
-function draw(){
- ctx.clearRect(0,0,W,H);
- ctx.fillStyle="#18723b";
- ctx.fillRect(0,0,W,H);
-
- // Highway
- ctx.fillStyle="#292e3b";
- ctx.fillRect(roadL,0,roadR-roadL,H);
-
- // Road edges
- ctx.fillStyle="#eee";
- ctx.fillRect(roadL+4,0,4,H);
- ctx.fillRect(roadR-8,0,4,H);
-
- // Moving lane markings
- ctx.fillStyle="#ffffffaa";
- for(let y=-100+roadOffset;y<H;y+=100){
-  ctx.fillRect(130,y,5,48);
-  ctx.fillRect(226,y,5,48);
- }
-
- // Roadside decorations
- for(let y=-60+roadOffset;y<H;y+=100){
-  ctx.fillStyle="#f8da42";
-  ctx.fillRect(13,y,10,28);
-  ctx.fillRect(337,y,10,28);
- }
-
- // Objects
- objects.forEach(o=>{
-  if(o.type==="coin"){
-   ctx.fillStyle="#ffcf25";
-   ctx.beginPath();
-   ctx.arc(o.x,o.y,13,0,Math.PI*2);
-   ctx.fill();
-   ctx.strokeStyle="#fff4a0";
-   ctx.lineWidth=3;ctx.stroke();
-   ctx.fillStyle="#8c5900";
-   ctx.font="bold 17px Arial";
-   ctx.textAlign="center";
-   ctx.fillText("$",o.x,o.y+6);
-  }else{
-   car(o.x,o.y,o.color,true);
-  }
- });
-
- car(x,505,cars[selected].color);
-
- // Nitro meter
- ctx.fillStyle="#111b";
- ctx.fillRect(12,12,112,23);
- ctx.fillStyle="#ffbd30";
- ctx.fillRect(17,17,nitro,13);
- ctx.fillStyle="white";
- ctx.font="bold 10px Arial";
- ctx.textAlign="left";
- ctx.fillText("NITRO",45,27);
-
- if(state==="paused"){
-  ctx.fillStyle="#0009";
-  ctx.fillRect(0,0,W,H);
-  ctx.fillStyle="white";
-  ctx.font="bold 34px Arial";
-  ctx.textAlign="center";
-  ctx.fillText("PAUSED",180,290);
- }
-}
-
-function addObject(){
- let lane=lanes[Math.floor(Math.random()*3)];
- let coin=Math.random()<.35;
- objects.push({
-  x:lane,y:-45,
-  type:coin?"coin":"enemy",
-  color:["#ff4256","#a970ff","#ffab35"]
-   [Math.floor(Math.random()*3)]
- });
-}
-
-function loop(t){
- if(state!=="playing")return;
- if(!last)last=t;
- let dt=Math.min((t-last)/1000,.04);
- last=t;
-
- level=1+Math.floor(score/100);
- let boosting=input.nitro&&nitro>0;
- speed=90+Math.min(level*12,110)+(boosting?100:0);
-
- if(boosting)nitro=Math.max(0,nitro-35*dt);
- else nitro=Math.min(100,nitro+9*dt);
-
- let movement=260*dt;
- if(input.left)x-=movement;
- if(input.right)x+=movement;
- x=Math.max(roadL+26,Math.min(roadR-26,x));
-
- let velocity=(210+level*15+(boosting?160:0))*dt;
- roadOffset=(roadOffset+velocity)%100;
- score+=dt*(boosting?16:10);
-
- spawn+=dt;
- if(spawn>Math.max(.55,1.25-level*.035)){
-  spawn=0;addObject();
- }
-
- for(let i=objects.length-1;i>=0;i--){
-  let o=objects[i];
-  o.y+=velocity;
-  let dx=Math.abs(o.x-x);
-  let dy=Math.abs(o.y-505);
-
-  if(o.type==="coin"&&dx<30&&dy<42){
-   bank++;save();sound(950,.09);
-   objects.splice(i,1);
-  }else if(o.type==="enemy"&&dx<39&&dy<65){
-   endGame();draw();return;
-  }else if(o.y>650){
-   objects.splice(i,1);
-  }
- }
-
- hud();draw();
- requestAnimationFrame(loop);
-}
-
-$("play").onclick=startGame;
-
-$("pause").onclick=()=>{
- if(state==="playing"){
-  state="paused";
-  input={left:false,right:false,nitro:false};
-  $("pause").textContent="▶";
-  draw();
- }else if(state==="paused"){
-  state="playing";last=0;
-  $("pause").textContent="Ⅱ";
-  requestAnimationFrame(loop);
- }
-};
-
-function control(id,key){
- let b=$(id);
+function bind(id,key){
+ const b=$(id);
  b.addEventListener("pointerdown",e=>{
   e.preventDefault();
-  input[key]=true;
+  keys[key]=true;
   b.setPointerCapture(e.pointerId);
  });
- const stop=()=>input[key]=false;
+ const stop=()=>keys[key]=false;
  b.addEventListener("pointerup",stop);
  b.addEventListener("pointercancel",stop);
  b.addEventListener("lostpointercapture",stop);
 }
 
-control("left","left");
-control("right","right");
-control("nitro","nitro");
+bind("left","left");
+bind("right","right");
+bind("brake","brake");
+bind("nitro","nitro");
 
 document.addEventListener("keydown",e=>{
- if(["ArrowLeft","ArrowRight"," "].includes(e.key))
-  e.preventDefault();
- if(e.key==="ArrowLeft")input.left=true;
- if(e.key==="ArrowRight")input.right=true;
- if(e.code==="Space")input.nitro=true;
+ if(e.key==="ArrowLeft")keys.left=true;
+ if(e.key==="ArrowRight")keys.right=true;
+ if(e.code==="Space")keys.brake=true;
 });
 document.addEventListener("keyup",e=>{
- if(e.key==="ArrowLeft")input.left=false;
- if(e.key==="ArrowRight")input.right=false;
- if(e.code==="Space")input.nitro=false;
-});
-window.addEventListener("blur",()=>{
- input={left:false,right:false,nitro:false};
- if(state==="playing")$("pause").click();
+ if(e.key==="ArrowLeft")keys.left=false;
+ if(e.key==="ArrowRight")keys.right=false;
+ if(e.code==="Space")keys.brake=false;
 });
 
-menu("DROFIX RACING",
- "Choose your car and start racing!",
- "START RACE ▶");
-draw();
+window.addEventListener("blur",()=>{
+ keys.left=false;keys.right=false;
+ keys.brake=false;keys.nitro=false;
+});
+
+const clock=new THREE.Clock();
+
+function animate(){
+ requestAnimationFrame(animate);
+ const dt=Math.min(clock.getDelta(),.04);
+
+ if(running){
+  level=Math.min(10,1+Math.floor(score/150));
+
+  const target=keys.brake?45:
+   keys.nitro?230:120+level*8;
+
+  speed+=(target-speed)*dt*3;
+  const move=speed/20*dt;
+
+  if(keys.left)player.position.x-=7*dt;
+  if(keys.right)player.position.x+=7*dt;
+
+  player.position.x=THREE.MathUtils.clamp(
+   player.position.x,-4.7,4.7
+  );
+
+  player.rotation.z=THREE.MathUtils.lerp(
+   player.rotation.z,
+   keys.left?.07:keys.right?-.07:0,.12
+  );
+
+  // Follow the car
+  camera.position.x=THREE.MathUtils.lerp(
+   camera.position.x,player.position.x*.6,.05
+  );
+  camera.lookAt(player.position.x*.5,1,-12);
+
+  lines.forEach(l=>{
+   l.position.z+=move;
+   if(l.position.z>22)l.position.z-=180;
+  });
+
+  trees.forEach(t=>{
+   t.position.z+=move;
+   if(t.position.z>25)t.position.z-=180;
+  });
+
+  spawn+=dt;
+  if(spawn>Math.max(.6,1.7-level*.08)){
+   spawn=0;
+   traffic();
+  }
+
+  enemies.forEach(e=>e.position.z+=move*1.2);
+
+  pickups.forEach(p=>{
+   p.position.z+=move;
+   p.rotation.y+=dt*3;
+  });
+
+  for(let i=enemies.length-1;i>=0;i--){
+   const e=enemies[i];
+   if(Math.abs(e.position.z-player.position.z)<2.7 &&
+      Math.abs(e.position.x-player.position.x)<1.65){
+    gameOver();
+   }
+   if(e.position.z>25){
+    scene.remove(e);
+    enemies.splice(i,1);
+   }
+  }
+
+  for(let i=pickups.length-1;i>=0;i--){
+   const p=pickups[i];
+   if(Math.abs(p.position.z-player.position.z)<1.5 &&
+      Math.abs(p.position.x-player.position.x)<1.3){
+    coins++;
+    scene.remove(p);
+    pickups.splice(i,1);
+   }else if(p.position.z>25){
+    scene.remove(p);
+    pickups.splice(i,1);
+   }
+  }
+
+  score+=dt*speed/10;
+  hud();
+ }
+
+ renderer.render(scene,camera);
+}
+
+window.addEventListener("resize",()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+
+animate();
 </script>
 </body>
- </html>
- 
+</html>
