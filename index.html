@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Car Racing Game</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#101827;color:white;
+ font-family:Arial;text-align:center;overflow:hidden;
+}
+h2{margin:12px}
+#game{
+ position:relative;width:300px;height:65vh;
+ max-height:600px;margin:auto;overflow:hidden;
+ background:#333;border:4px solid white;
+}
+.line{
+ position:absolute;width:8px;height:70px;
+ background:white;left:142px;
+}
+.car{
+ position:absolute;width:44px;height:75px;
+ border-radius:9px;
+}
+#player{
+ background:#00e5ff;bottom:20px;left:125px;
+ z-index:2;border:3px solid #fff;
+}
+.enemy{background:#ff394f}
+.car:after{
+ content:"";position:absolute;
+ top:12px;left:8px;width:22px;height:17px;
+ background:#172334;border-radius:4px;
+}
+#controls{margin:15px}
+button{
+ padding:15px 28px;font-size:22px;
+ border:0;border-radius:12px;
+ background:#00d4ff;margin:5px;
+ touch-action:none;
+}
+#start{background:#4ade80;font-size:18px}
+</style>
+</head>
+<body>
+<h2>🏎️ CAR RACING</h2>
+<h3>Score: <span id="score">0</span></h3>
+<div id="game">
+ <div id="player" class="car"></div>
+</div>
+<div id="controls">
+ <button id="left">⬅️</button>
+ <button id="start">START</button>
+ <button id="right">➡️</button>
+</div>
+<script>
+const game=document.getElementById("game");
+const player=document.getElementById("player");
+const scoreText=document.getElementById("score");
+const start=document.getElementById("start");
+let running=false,score=0,x=125,frame=0;
+let enemies=[],lines=[],keys={};
+let last=0,animation;
+
+function reset(){
+ enemies.forEach(e=>e.remove());
+ lines.forEach(l=>l.remove());
+ enemies=[];lines=[];
+ score=0;frame=0;x=125;last=0;
+ scoreText.textContent=0;
+ player.style.left=x+"px";
+ for(let i=0;i<6;i++){
+  let l=document.createElement("div");
+  l.className="line";
+  l.style.top=(i*110-100)+"px";
+  game.appendChild(l);lines.push(l);
+ }
+}
+
+function enemy(){
+ let e=document.createElement("div");
+ e.className="car enemy";
+ e.style.left=([25,125,225][Math.floor(Math.random()*3)])+"px";
+ e.style.top="-80px";
+ game.appendChild(e);enemies.push(e);
+}
+
+function loop(t){
+ if(!running)return;
+ if(!last)last=t;
+ let dt=Math.min((t-last)/16.67,2);
+ last=t;
+ frame+=dt;
+ let speed=4+Math.min(score/150,5);
+ if(keys.left)x-=6*dt;
+ if(keys.right)x+=6*dt;
+ x=Math.max(0,Math.min(248,x));
+ player.style.left=x+"px";
+
+ lines.forEach(l=>{
+  let y=parseFloat(l.style.top)+speed*dt;
+  if(y>game.clientHeight)y=-75;
+  l.style.top=y+"px";
+ });
+
+ if(frame>65){
+  enemy();frame=0;
+ }
+ enemies.forEach(e=>{
+  let y=parseFloat(e.style.top)+speed*dt;
+  e.style.top=y+"px";
+  let ex=parseFloat(e.style.left);
+  let py=game.clientHeight-95;
+  if(y<py+75 && y+75>py &&
+     ex<x+44 && ex+44>x){
+   running=false;
+   start.textContent="RESTART";
+   alert("GAME OVER! Score: "+Math.floor(score));
+  }
+  if(y>game.clientHeight){
+   e.remove();
+   enemies=enemies.filter(a=>a!==e);
+  }
+ });
+ if(!running)return;
+ score+=dt*.15;
+ scoreText.textContent=Math.floor(score);
+ animation=requestAnimationFrame(loop);
+}
+
+start.onclick=()=>{
+ cancelAnimationFrame(animation);
+ running=false;
+ keys={};
+ reset();
+ running=true;
+ start.textContent="RESTART";
+ animation=requestAnimationFrame(loop);
+};
+
+function bind(id,key){
+ let b=document.getElementById(id);
+ b.onpointerdown=e=>{
+  e.preventDefault();
+  keys[key]=true;
+  b.setPointerCapture(e.pointerId);
+ };
+ b.onpointerup=()=>keys[key]=false;
+ b.onpointercancel=()=>keys[key]=false;
+ b.onlostpointercapture=()=>keys[key]=false;
+}
+bind("left","left");
+bind("right","right");
+
+document.onkeydown=e=>{
+ if(e.key==="ArrowLeft")keys.left=true;
+ if(e.key==="ArrowRight")keys.right=true;
+};
+document.onkeyup=e=>{
+ if(e.key==="ArrowLeft")keys.left=false;
+ if(e.key==="ArrowRight")keys.right=false;
+};
+reset();
+</script>
+</body>
+  </html>
+  
